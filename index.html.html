@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>邦普循环 - 资深制造业法务模拟器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brunp: {
+                            green: '#10b981', // Emerald green for recycling/eco
+                            blue: '#2563eb',  // Corporate blue
+                            dark: '#0f172a',
+                            darker: '#020617',
+                            panel: '#1e293b'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        serif: ['Merriweather', 'serif'],
+                        mono: ['Fira Code', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #020617; /* brunp-darker */
+            color: #f8fafc;
+            overflow: hidden;
+        }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+        .tab-content { display: none; animation: fadeIn 0.3s ease-in-out; }
+        .tab-content.active { display: block; }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .metric-bar { transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.4s; }
+        
+        .nav-btn.active {
+            background-color: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+            border-right: 3px solid #10b981;
+        }
+
+        .memo-paper {
+            background-color: #f1f5f9;
+            background-image: repeating-linear-gradient(transparent, transparent 27px, #cbd5e1 28px);
+            background-attachment: local;
+            color: #0f172a;
+        }
+    </style>
+</head>
+<body class="h-screen flex selection:bg-brunp-green selection:text-white">
+
+    <aside class="w-64 bg-brunp-dark flex flex-col shrink-0 shadow-2xl z-20 border-r border-slate-800">
+        <div class="p-6 flex items-center gap-3 border-b border-slate-800">
+            <div class="bg-brunp-green text-white p-2 rounded-lg shadow-lg shadow-emerald-900/50">
+                <i class="fa-solid fa-recycle text-xl"></i>
+            </div>
+            <div>
+                <h1 class="text-sm font-bold tracking-wide uppercase text-white">邦普循环法务部</h1>
+                <p class="text-[10px] text-emerald-400 font-mono tracking-widest">BRUNP LEGAL</p>
+            </div>
+        </div>
+
+        <nav class="flex-1 py-6 space-y-1 overflow-y-auto">
+            <button onclick="switchTab('tab-inbox')" id="nav-tab-inbox" class="nav-btn w-full flex items-center justify-between px-6 py-3 text-sm font-medium transition-colors text-slate-400 hover:bg-slate-800 hover:text-slate-200 active">
+                <div class="flex items-center gap-3"><i class="fa-solid fa-briefcase w-5 text-center"></i> 待办案件</div>
+                <span id="badge-inbox" class="hidden bg-rose-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">0</span>
+            </button>
+            <button onclick="switchTab('tab-profile')" id="nav-tab-profile" class="nav-btn w-full flex items-center gap-3 px-6 py-3 text-sm font-medium transition-colors text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+                <i class="fa-solid fa-building w-5 text-center"></i> 公司档案
+            </button>
+            <button onclick="switchTab('tab-kb')" id="nav-tab-kb" class="nav-btn w-full flex items-center gap-3 px-6 py-3 text-sm font-medium transition-colors text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+                <i class="fa-solid fa-book-scale w-5 text-center"></i> 合规知识库
+            </button>
+            <button onclick="switchTab('tab-log')" id="nav-tab-log" class="nav-btn w-full flex items-center gap-3 px-6 py-3 text-sm font-medium transition-colors text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+                <i class="fa-solid fa-list-check w-5 text-center"></i> 工作日志
+            </button>
+        </nav>
+
+        <div class="p-5 border-t border-slate-800 bg-slate-900/50">
+            <div class="text-[10px] text-slate-500 font-mono mb-1">CURRENT DAY</div>
+            <div class="text-xl font-bold text-slate-200 font-mono mb-3" id="current-day-display">Day 1</div>
+            <button onclick="advanceDay()" class="w-full bg-brunp-green hover:bg-emerald-600 text-slate-900 text-sm font-bold py-2.5 rounded-lg transition-all flex items-center justify-center gap-2 group shadow-lg shadow-emerald-900/20">
+                进入下一工作日 <i class="fa-solid fa-arrow-right text-xs group-hover:translate-x-1 transition-transform"></i>
+            </button>
+        </div>
+    </aside>
+
+    <main class="flex-1 flex flex-col h-screen overflow-hidden relative">
+        
+        <!-- Metrics Header -->
+        <header class="bg-brunp-dark border-b border-slate-800 shadow-md p-4 px-6 flex flex-wrap justify-between items-center shrink-0 z-10 gap-4">
+            
+            <!-- Compliance Risk -->
+            <div class="flex-1 min-w-[150px]">
+                <div class="flex justify-between items-end mb-1.5">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1"><i class="fa-solid fa-triangle-exclamation text-rose-500"></i> 合规风险 (Risk)</span>
+                    <span id="metric-risk-text" class="text-sm font-mono font-bold text-slate-200">0%</span>
+                </div>
+                <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                    <div id="metric-risk-bar" class="h-full bg-emerald-500 metric-bar" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <div class="w-px h-8 bg-slate-700 hidden md:block mx-2"></div>
+
+            <!-- Business Velocity -->
+            <div class="flex-1 min-w-[150px]">
+                <div class="flex justify-between items-end mb-1.5">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1"><i class="fa-solid fa-gauge-high text-blue-500"></i> 业务推进率 (Velocity)</span>
+                    <span id="metric-velocity-text" class="text-sm font-mono font-bold text-slate-200">100%</span>
+                </div>
+                <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                    <div id="metric-velocity-bar" class="h-full bg-blue-500 metric-bar" style="width: 100%"></div>
+                </div>
+            </div>
+
+            <div class="w-px h-8 bg-slate-700 hidden md:block mx-2"></div>
+
+            <!-- ESG Reputation -->
+            <div class="flex-1 min-w-[150px]">
+                <div class="flex justify-between items-end mb-1.5">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1"><i class="fa-solid fa-leaf text-emerald-400"></i> ESG与品牌声誉</span>
+                    <span id="metric-esg-text" class="text-sm font-mono font-bold text-slate-200">100</span>
+                </div>
+                <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                    <div id="metric-esg-bar" class="h-full bg-emerald-400 metric-bar" style="width: 100%"></div>
+                </div>
+            </div>
+
+            <div class="w-px h-8 bg-slate-700 hidden lg:block mx-2"></div>
+
+            <!-- Budget -->
+            <div class="min-w-[120px]">
+                <span class="text-[10px] font-bold text-slate-400 uppercase mb-1 block">部门预算 (Budget)</span>
+                <span id="metric-budget" class="text-lg font-mono font-bold text-amber-400">¥ 5,000,000</span>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <div class="flex-1 overflow-y-auto p-6 relative custom-scrollbar bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] bg-opacity-5">
+            
+            <div id="tab-inbox" class="tab-content active max-w-4xl mx-auto">
+                <div id="inbox-list-container">
+                    <div class="mb-6 flex justify-between items-end border-b border-slate-800 pb-4">
+                        <div>
+                            <h2 class="text-2xl font-bold text-white">法务待办案件</h2>
+                            <p class="text-slate-500 text-sm mt-1">请基于邦普循环的全球化战略、ESG目标与合规底线做出独立判断。</p>
+                        </div>
+                    </div>
+                    <div id="case-list" class="space-y-4">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <!-- Case Detail Container -->
+                <div id="case-detail-container" class="hidden">
+                    <button onclick="closeCase()" class="mb-4 text-sm text-slate-400 hover:text-white flex items-center gap-2 transition-colors">
+                        <i class="fa-solid fa-arrow-left"></i> 返回案卷列表
+                    </button>
+                    
+                    <div class="bg-brunp-panel border border-slate-700 rounded-xl overflow-hidden shadow-2xl">
+                        <div class="p-6 border-b border-slate-700 bg-slate-800/50">
+                            <div class="flex items-center gap-2 mb-3">
+                                <span class="bg-slate-700 text-slate-300 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider" id="case-category">Category</span>
+                            </div>
+                            <h2 id="case-subject" class="text-xl font-bold text-white mb-4">Subject</h2>
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-full bg-slate-700 border border-slate-600 flex items-center justify-center text-slate-300 font-bold" id="case-avatar"></div>
+                                <div>
+                                    <div class="font-bold text-slate-200 text-sm" id="case-sender">Sender</div>
+                                    <div class="text-xs text-slate-500" id="case-role">Role</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="p-6 text-slate-300 text-sm leading-relaxed" id="case-content">
+                            <!-- Background Fact -->
+                        </div>
+                        
+                        <div class="p-6 bg-slate-900 border-t border-slate-800">
+                            <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4"><i class="fa-solid fa-gavel text-amber-500 mr-2"></i> 做出合规决策 (Make a Decision)</h3>
+                            <div class="space-y-3" id="case-options">
+                                <!-- Options -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-profile" class="tab-content max-w-5xl mx-auto">
+                <div class="bg-brunp-panel border border-slate-700 rounded-2xl p-8 shadow-xl relative overflow-hidden">
+                    <div class="absolute top-0 right-0 p-8 opacity-5">
+                        <i class="fa-solid fa-recycle text-9xl"></i>
+                    </div>
+                    <div class="flex items-center gap-4 mb-6 relative z-10">
+                        <div class="bg-white p-3 rounded-xl"><img src="https://ui-avatars.com/api/?name=BP&background=fff&color=10b981&font-size=0.6" alt="Logo" class="w-12 h-12"></div>
+                        <div>
+                            <h2 class="text-3xl font-bold text-white">邦普循环 (Brunp Recycling)</h2>
+                            <p class="text-emerald-400 font-medium">全球领先的锂电池循环服务商</p>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 relative z-10">
+                        <div class="bg-slate-800/50 border border-slate-700 p-4 rounded-xl text-center">
+                            <div class="text-2xl font-bold text-white mb-1">99.6%</div>
+                            <div class="text-xs text-slate-400">镍钴锰综合回收率</div>
+                        </div>
+                        <div class="bg-slate-800/50 border border-slate-700 p-4 rounded-xl text-center">
+                            <div class="text-2xl font-bold text-white mb-1">93.8%</div>
+                            <div class="text-xs text-slate-400">锂回收率</div>
+                        </div>
+                        <div class="bg-slate-800/50 border border-slate-700 p-4 rounded-xl text-center">
+                            <div class="text-2xl font-bold text-white mb-1">5770+</div>
+                            <div class="text-xs text-slate-400">全球专利申请量</div>
+                        </div>
+                        <div class="bg-slate-800/50 border border-slate-700 p-4 rounded-xl text-center">
+                            <div class="text-2xl font-bold text-white mb-1">405+</div>
+                            <div class="text-xs text-slate-400">全国标准制定量</div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10 text-sm">
+                        <div>
+                            <h3 class="text-lg font-bold text-white mb-3 border-b border-slate-700 pb-2">三大核心业务</h3>
+                            <ul class="space-y-2 text-slate-300">
+                                <li><i class="fa-solid fa-check text-emerald-500 mr-2"></i> <strong>回收 (Recycling):</strong> 退役电池识别、物理拆解与再生处理 (DRT定向回收技术)。</li>
+                                <li><i class="fa-solid fa-check text-emerald-500 mr-2"></i> <strong>资源 (Resources):</strong> 原矿采冶，包括刚果(金)钴矿、印尼镍矿、南美盐湖锂矿。</li>
+                                <li><i class="fa-solid fa-check text-emerald-500 mr-2"></i> <strong>材料 (Materials):</strong> 前驱体合成与正极材料烧结，全链条一体化。</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-bold text-white mb-3 border-b border-slate-700 pb-2">全球化布局</h3>
+                            <ul class="space-y-2 text-slate-300">
+                                <li><i class="fa-solid fa-location-dot text-blue-400 mr-2"></i> <strong>中国 (7大基地):</strong> 广东佛山(创新总部)、湖南长沙、福建宁德、湖北宜昌等。</li>
+                                <li><i class="fa-solid fa-location-dot text-blue-400 mr-2"></i> <strong>印尼:</strong> 布里、莫罗瓦利、纬达贝。</li>
+                                <li><i class="fa-solid fa-location-dot text-blue-400 mr-2"></i> <strong>其他海外:</strong> 刚果(金)项目、南美基地、欧洲项目(规划中)。</li>
+                            </ul>
+                        </div>
+                        <div class="md:col-span-2 bg-emerald-900/20 border border-emerald-800 p-4 rounded-xl">
+                            <h3 class="text-md font-bold text-emerald-400 mb-2">ESG 与 双碳战略 (零碳工厂)</h3>
+                            <p class="text-slate-300 mb-2">打造零碳工厂，实现电池全生命周期的绿色低碳可持续。涵盖碳足迹核算、清洁能源导入、负责任供应链管理（符合OECD及Battery Passport要求）。</p>
+                            <p class="text-slate-300">目前拥有 <strong>9大零碳工厂</strong>（包括创新总部、湖南邦普、宜昌邦普、宁德邦普等），并获得 SGS 的 PAS 2060 碳中和宣告核证声明。</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-kb" class="tab-content max-w-5xl mx-auto">
+                <h2 class="text-2xl font-bold text-white mb-6">制造业法务合规知识库</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div class="bg-brunp-panel border border-slate-700 p-5 rounded-xl">
+                        <h3 class="text-blue-400 font-bold mb-2 text-lg"><i class="fa-solid fa-shield-halved mr-2"></i> 知识产权 (IP & DRT)</h3>
+                        <p class="text-slate-300">邦普首创 <strong>DRT (Directional Recycling Technology 定向回收技术)</strong>，拥有极高的技术壁垒。对于商业秘密泄露或专利侵权，法务部必须采取“零容忍”态度，优先申请禁令(Injunction)，并积极通过诉讼维护核心资产。</p>
+                    </div>
+                    <div class="bg-brunp-panel border border-slate-700 p-5 rounded-xl">
+                        <h3 class="text-emerald-400 font-bold mb-2 text-lg"><i class="fa-solid fa-leaf mr-2"></i> 负责任供应链 (ESG & Due Diligence)</h3>
+                        <p class="text-slate-300">在刚果(金)开采钴矿或印尼开采镍矿时，必须严格遵守《OECD受冲突影响和高风险地区矿石负责任供应链尽职调查指南》。若上游供应商涉嫌强迫劳动或严重污染，应立即切断业务或强力介入整改，否则将面临极其严重的品牌声誉毁灭。</p>
+                    </div>
+                    <div class="bg-brunp-panel border border-slate-700 p-5 rounded-xl">
+                        <h3 class="text-amber-400 font-bold mb-2 text-lg"><i class="fa-solid fa-cloud mr-2"></i> 数据合规与 GDPR</h3>
+                        <p class="text-slate-300">伴随欧洲项目的规划落地，员工及欧洲本地客户的数据跨境回传中国总部受到欧盟 GDPR Chapter V 的严格限制。必须签署标准合同条款(SCCs)并执行数据传输影响评估(TIA)，绝不能依赖简单的“知情同意”进行常规业务传输。</p>
+                    </div>
+                    <div class="bg-brunp-panel border border-slate-700 p-5 rounded-xl">
+                        <h3 class="text-rose-400 font-bold mb-2 text-lg"><i class="fa-solid fa-industry mr-2"></i> 零碳工厂与绿电洗绿风险 (Greenwashing)</h3>
+                        <p class="text-slate-300">邦普在全球拥有9大零碳工厂(PAS 2060认证)。欧盟《电池法》及客户对碳足迹要求极高。法务需审核“双碳核算系统”的数据真实性。若在购买绿电(I-REC)或碳汇时出现重复计算或数据造假，将被指控为“洗绿(Greenwashing)”，面临巨额罚单及退货处理。</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-log" class="tab-content max-w-4xl mx-auto">
+                <div class="bg-brunp-panel border border-slate-700 rounded-xl overflow-hidden flex flex-col h-[75vh]">
+                    <div class="p-4 border-b border-slate-700 bg-slate-800/50">
+                        <h3 class="text-sm font-bold text-slate-200"><i class="fa-solid fa-terminal text-emerald-500 mr-2"></i> 合规操作与事件日志</h3>
+                    </div>
+                    <div id="system-log" class="flex-1 p-6 overflow-y-auto font-mono text-xs text-slate-400 space-y-3 custom-scrollbar bg-slate-900">
+                        <!-- Logs inject here -->
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Legal Memo Modal -->
+        <div id="memo-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+            <div class="bg-slate-100 rounded-md max-w-2xl w-full shadow-2xl transform scale-95 transition-transform duration-300 overflow-hidden flex flex-col max-h-[90vh]">
+                <div class="bg-slate-200 border-b-2 border-slate-300 p-6 shrink-0">
+                    <div class="text-center mb-4">
+                        <h2 class="text-2xl font-serif font-bold text-slate-800">LEGAL MEMORANDUM (法务备忘录)</h2>
+                        <div class="text-[10px] font-bold text-rose-700 uppercase tracking-widest mt-1">Brunp Legal Dept - Internal Use Only</div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-xs font-mono text-slate-600 border-t border-slate-300 pt-3">
+                        <div><span class="font-bold">TO:</span> Board of Directors</div>
+                        <div><span class="font-bold">FROM:</span> Chief Legal Officer</div>
+                        <div id="memo-date"><span class="font-bold">DATE:</span> </div>
+                        <div><span class="font-bold">STATUS:</span> <span class="px-2 py-0.5 rounded text-white bg-slate-600">Decision Executed</span></div>
+                    </div>
+                </div>
+                <div class="p-8 overflow-y-auto memo-paper text-slate-800 font-serif leading-relaxed text-sm flex-1">
+                    <p class="font-bold mb-2 uppercase text-xs tracking-wider text-slate-500 font-sans">法律与合规分析 (Legal Analysis):</p>
+                    <div id="memo-analysis" class="mb-6"></div>
+                    
+                    <p class="font-bold mb-2 uppercase text-xs tracking-wider text-slate-500 font-sans">业务与指标影响 (Impact):</p>
+                    <div class="bg-white/60 border border-slate-300 p-4 rounded font-sans text-xs space-y-2 shadow-inner" id="memo-impacts">
+                        <!-- Impacts -->
+                    </div>
+                </div>
+                <div class="bg-slate-200 p-4 border-t-2 border-slate-300 shrink-0 flex justify-end">
+                    <button onclick="closeMemo()" class="bg-slate-800 hover:bg-slate-700 text-white font-bold py-2 px-6 rounded shadow-md transition-colors font-sans text-sm">
+                        确认归档 (Archive)
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Over Modal -->
+        <div id="game-over-modal" class="fixed inset-0 bg-rose-950/95 backdrop-blur-md z-[100] hidden flex flex-col items-center justify-center p-4">
+            <i class="fa-solid fa-triangle-exclamation text-7xl text-rose-500 mb-6 drop-shadow-[0_0_15px_rgba(244,63,94,0.8)]"></i>
+            <h2 class="text-4xl font-bold text-white mb-3 tracking-widest" id="go-title">法务生涯终止</h2>
+            <p class="text-rose-200 text-lg mb-8 max-w-xl text-center" id="go-desc">您的合规风险已突破阈值，监管机构突击搜查了邦普创新总部，或您的业务推进率过低导致被董事会解雇。</p>
+            <div class="bg-black/40 p-6 rounded-xl border border-rose-800/50 flex gap-10 mb-8 text-center shadow-xl">
+                <div><div class="text-xs text-rose-400 mb-1 uppercase tracking-widest">在职天数</div><div class="text-4xl font-mono text-white" id="go-days">0</div></div>
+                <div><div class="text-xs text-rose-400 mb-1 uppercase tracking-widest">处理案件</div><div class="text-4xl font-mono text-white" id="go-cases">0</div></div>
+            </div>
+            <button onclick="location.reload()" class="bg-rose-600 hover:bg-rose-500 text-white font-bold py-3 px-10 rounded-lg shadow-lg text-lg transition-colors">重新入职邦普循环</button>
+        </div>
+
+    </main>
+
+    <script>
+        // --- State Management ---
+        let state = {
+            day: 0,
+            risk: 10,       // 0-100, Game Over if >= 90
+            velocity: 90,   // 0-100, Game Over if <= 20
+            esg: 90,        // 0-100, Reputation
+            budget: 5000000,
+            casesDone: 0,
+            inbox: [],      
+            historyQueue: [] 
+        };
+
+        const cnyFmt = new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY', maximumFractionDigits: 0 });
+
+        // --- Deep Case Database (Brunp Recycling Context) ---
+        const caseDatabase = [
+            {
+                id: 'id_overseas_labor',
+                category: 'Overseas Supply Chain / ESG',
+                sender: 'VP Overseas Mining', role: '印尼莫罗瓦利基地负责人',
+                subject: '紧急：印尼红土镍矿当地NGO抗议劳工与环境问题',
+                content: '<p class="mb-3">法务总您好，</p><p class="mb-3">我们在印尼莫罗瓦利(Morowali)基地的红土镍矿项目刚刚遭遇当地环保 NGO 的围堵抗议。对方指控我们的本地承包商存在“克扣工资、超时劳动”的问题，并声称我们的尾矿处理可能污染了附近海域。</p><p>目前一些欧洲整车厂(OEM)客户已经发邮件来询问此事，威胁如果不给出合理解释，将触发《电池法》下的供应链尽职调查违约条款。当地承包商建议我们直接花钱“公关”掉这个 NGO。请指示。</p>',
+                options: [
+                    {
+                        text: '采纳承包商建议，动用预算在当地进行私下“公关”和媒体压制，确保镍矿开采进度不受影响。',
+                        isCorrect: false,
+                        analysis: '致命的合规违规！此举不仅违反了中国及印尼的反腐败法律，一旦被查实，将直接违反 OECD 供应链尽职调查要求。不仅解决不了根源问题，还会彻底摧毁邦普在欧洲 OEM 客户心中的 ESG 形象，面临退单风险。',
+                        impact: { risk: +40, velocity: +5, esg: -50, budget: -500000 }
+                    },
+                    {
+                        text: '立即拒绝“公关”。向欧洲客户坦诚情况，并在印尼基地聘请第三方国际审计机构(如SGS)对承包商劳工状况和尾矿进行独立 ESG 审计。',
+                        isCorrect: true,
+                        analysis: '教科书级别的危机公关与合规处理。虽然第三方独立审计需要耗费大量预算，并可能短暂影响印尼基地的产能(Velocity下降)，但这保住了邦普的全球品牌声誉，符合“负责任供应链”要求。',
+                        impact: { risk: -10, velocity: -15, esg: +15, budget: -800000 }
+                    },
+                    {
+                        text: '直接无视 NGO 的抗议，继续全速开采。认为这只是本地利益分配不均，不予理会。',
+                        isCorrect: false,
+                        analysis: '极度不负责任。欧盟《电池法》对上游矿产供应链的尽职调查是强制性的。无视问题将直接导致欧洲客户切断与邦普的合作，并在国际媒体上形成巨大的负面舆论。',
+                        impact: { risk: +30, velocity: +10, esg: -40, budget: 0 }
+                    }
+                ]
+            },
+            {
+                id: 'eu_gdpr_transfer',
+                category: 'Data Compliance / GDPR',
+                sender: 'Head of European Operations', role: '欧洲项目组(筹)',
+                subject: '咨询：欧洲规划阶段员工与合作伙伴数据回传国内',
+                content: '<p class="mb-3">法务部，</p><p class="mb-3">我们在欧洲的电池循环项目正在前期规划阶段。为了方便佛山总部的 HR 和采购部门进行集中管理，我们需要将近期在欧洲招聘的 50 名筹备期员工的个人简历、社保信息，以及一些欧洲本地供应商的联系人数据，直接录入总部的云端 OA 系统（服务器在佛山）。</p><p>为了加快进度，HR 建议在员工入职合同里加一句“同意将数据传回中国”。这样符合 GDPR 吗？</p>',
+                options: [
+                    {
+                        text: '同意。只要在入职合同中获得了员工的“明确同意(Consent)”，就可以合法进行数据跨境传输。',
+                        isCorrect: false,
+                        analysis: '严重误判 GDPR！在雇佣关系中，由于劳资双方地位不平等，员工的“同意”通常被视为“非自由作出(not freely given)”，因此极易被判定无效。依赖“同意”进行系统性的 HR 数据回传是极高风险的行为。',
+                        impact: { risk: +35, velocity: +10, esg: -5, budget: 0 }
+                    },
+                    {
+                        text: '否决。系统性的日常数据回传不能依赖“同意”。必须由佛山总部与欧洲分支机构签署标准合同条款(SCCs)，并完成数据传输影响评估(TIA)。',
+                        isCorrect: true,
+                        analysis: '合规逻辑严密。遵循了欧盟数据保护委员会(EDPB)的指导原则。跨国企业内部的系统性数据传输，SCCs (结合 TIA) 是目前最稳妥的合法机制。虽然前期准备耗时耗力，但确保了合规底线。',
+                        impact: { risk: -15, velocity: -10, esg: +5, budget: -150000 }
+                    }
+                ]
+            },
+            {
+                id: 'ip_drt_leak',
+                category: 'Intellectual Property (IP)',
+                sender: 'Chief Technology Officer', role: '研发与创新中心',
+                subject: 'CRITICAL: 前高管涉嫌盗用 DRT 定向回收技术',
+                content: '<p class="mb-3">法务总监，</p><p class="mb-3">极其糟糕的消息。我们的一名前核心工艺工程师上个月离职，今天我们发现他加入了一家国内的新兴电池回收竞品公司。更严重的是，该竞品公司刚刚宣布突破了“高效镍钴锰萃取技术”，其技术路径参数与邦普独家拥有的 <strong>DRT (定向回收技术)</strong> 商业秘密高度重合。</p><p>邦普在这一领域有超过 5770 件专利申请。如果我们不采取行动，公司在再生处理领域的核心技术护城河将被击穿。</p>',
+                options: [
+                    {
+                        text: '立即启动商业秘密侵权诉讼，并向法院申请诉前行为保全（禁令），要求竞品公司立即停止使用该技术。',
+                        isCorrect: true,
+                        analysis: '果断且正确的维权行动。DRT 技术是邦普三大核心业务（回收）的立身之本。对于核心前高管的带枪投敌与技术窃取，申请禁令止损是法务部的第一要务。',
+                        impact: { risk: -20, velocity: 0, esg: +10, budget: -500000 }
+                    },
+                    {
+                        text: '暂时按兵不动，派人去对方工厂偷偷搜集更多生产线上的确凿证据，再考虑起诉。',
+                        isCorrect: false,
+                        analysis: '错失良机。商业秘密一旦投入大规模生产并扩散，损失将不可逆。非法获取证据不仅可能不被法庭采纳，还可能反被对方指控商业间谍。',
+                        impact: { risk: +30, velocity: -10, esg: -10, budget: 0 }
+                    },
+                    {
+                        text: '发动媒体公关战，在行业媒体上全网通报该工程师为“商业间谍”，搞臭其名声。',
+                        isCorrect: false,
+                        analysis: '极不专业的处理方式。未经理法庭判决，直接公开定性为“商业间谍”将使邦普面临名誉权侵权的诉讼风险。法务应依托法律武器，而非公关谩骂。',
+                        impact: { risk: +20, velocity: -5, esg: -20, budget: -50000 }
+                    }
+                ]
+            },
+            {
+                id: 'esg_zero_carbon_audit',
+                category: 'ESG / Greenwashing Risk',
+                sender: 'Director of Sustainability', role: '双碳战略办公室',
+                subject: '欧洲车企审查我们的“9大零碳工厂”碳足迹数据',
+                content: '<p class="mb-3">法务部，</p><p class="mb-3">德国一家顶级整车厂(OEM)派出了第三方审核团队，要求对我们宁德邦普和宜昌邦普基地的“零碳工厂”称号进行实质性审查。他们对我们的“双碳核算系统”生成的产品碳足迹报告提出了质疑，怀疑我们在正极材料烧结环节的碳减排数据存在水分，使用了有瑕疵的绿证(I-REC)。</p><p>如果审查失败，我们将被指控为“漂绿(Greenwashing)”，并失去下半年的三元前驱体巨额订单。业务部门建议给他们看一份“优化过”的碳核算报告。</p>',
+                options: [
+                    {
+                        text: '坚决抵制业务部的造假提议。向审核团队全面开放原始能耗数据，提供 PAS 2060 认证的底层支撑材料，接受透明审查。',
+                        isCorrect: true,
+                        analysis: '守住了合规红线！在严格的欧盟《电池法》和反漂绿指令背景下，碳数据造假的后果堪比财务造假。全面透明审查可能暴露一些小瑕疵，但证明了邦普的诚信与整改意愿，保住了长期信任。',
+                        impact: { risk: -15, velocity: -5, esg: +20, budget: -100000 }
+                    },
+                    {
+                        text: '采纳业务部建议，提供经过“修饰”的报告，以确保顺利通过本次审查拿到订单。',
+                        isCorrect: false,
+                        analysis: '致命的合规灾难！欧洲第三方机构具备极强的数据交叉比对能力，一旦发现底层电网数据与绿证对不上，邦普将被彻底拉入供应商黑名单。这不仅是业务损失，更是巨大的声誉毁灭。',
+                        impact: { risk: +45, velocity: +20, esg: -60, budget: 0 }
+                    },
+                    {
+                        text: '以“涉及商业秘密”为由，拒绝向第三方审核团队提供核心工段的详细能耗与碳排放数据。',
+                        isCorrect: false,
+                        analysis: '极其被动的策略。在当前新能源产业链中，拒绝碳排放审查等同于默认碳排放超标。整车厂将直接终止合同。',
+                        impact: { risk: +10, velocity: -30, esg: -15, budget: 0 }
+                    }
+                ]
+            },
+            {
+                id: 'congo_cobalt_sourcing',
+                category: 'Resources / Traceability',
+                sender: 'Supply Chain Manager', role: '资源采购部',
+                subject: '刚果(金)手工采矿(ASM)混入正规钴矿供应链',
+                content: '<p class="mb-3">法务，</p><p class="mb-3">我们在刚果(金)的一家正规大型钴矿石供应商，被国际特赦组织(Amnesty International)发现在其矿石批次中，偷偷混入了大量来自未经整顿的手工采矿(ASM)区域的矿石。这些手工矿区普遍存在童工和恶劣的劳动条件。</p><p>目前这批钴原料已经登船运往国内的湿法冶炼基地。如果我们拒收，下个月的材料制造将面临断供违约；如果接收，可能会违反我们的负责任矿产供应链承诺。</p>',
+                options: [
+                    {
+                        text: '立刻下达拒收指令，宁可国内产线停工违约，也绝不让有童工嫌疑的“血钻”钴进入邦普的一体化产业园。',
+                        isCorrect: true,
+                        analysis: '壮士断腕的决策，符合最高合规标准。接收污染供应链的材料将使生产出的所有前驱体和正极材料失去欧美市场的准入资格。短期的产线停工(Velocity暴跌)换取了免于制裁的安全。',
+                        impact: { risk: -15, velocity: -35, esg: +25, budget: -1500000 } // Extreme penalty for delay
+                    },
+                    {
+                        text: '接收这批矿石以保生产，但在系统里篡改溯源标签，伪装成其他合格矿山的产出。',
+                        isCorrect: false,
+                        analysis: '突破法律与道德底线的行为。一旦被溯源技术或国际机构戳穿，公司将面临毁灭性的公关危机，股票暴跌，涉事人员将面临刑事责任。',
+                        impact: { risk: +50, velocity: +15, esg: -70, budget: 0 }
+                    },
+                    {
+                        text: '先将其存放在保税区隔离。立刻派出法务与审计团队飞往刚果(金)进行现场核查。如查实混入童工矿，则依据合同进行高额索赔。',
+                        isCorrect: true,
+                        analysis: '非常稳健的商业法务处理方式。既避免了受污染矿石进入产线，又通过法律程序锁定了证据，为后续索赔和供应链隔离赢得了时间。',
+                        impact: { risk: -5, velocity: -15, esg: +10, budget: -200000 }
+                    }
+                ]
+            }
+        ];
+
+        // --- Core Engine Logic ---
+
+        function initApp() {
+            advanceDay(); // Start day 1
+        }
+
+        function switchTab(tabId) {
+            // Reset nav buttons
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('active');
+                btn.classList.remove('bg-brunp-green/10', 'text-brunp-green', 'border-r-4', 'border-brunp-green');
+            });
+            // Set active nav
+            const activeNav = document.getElementById(`nav-${tabId}`);
+            if(activeNav) {
+                activeNav.classList.add('active', 'bg-brunp-green/10', 'text-brunp-green', 'border-r-4', 'border-brunp-green');
+            }
+
+            // Reset contents
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            // Show active
+            document.getElementById(tabId).classList.add('active');
+
+            if(tabId === 'tab-inbox') {
+                closeCase(); // Ensure list is shown when returning to inbox
+            }
+        }
+
+        function advanceDay() {
+            if (state.inbox.length > 0) {
+                alert("合规无小事，请务必批复完所有待办案件再下班！");
+                switchTab('tab-inbox');
+                return;
+            }
+
+            state.day++;
+            
+            // Endless generation logic
+            const numCases = Math.floor(Math.random() * 2) + 2; // 2 or 3 cases per day
+            
+            let availableCases = caseDatabase.filter(c => !state.historyQueue.includes(c.id));
+            if (availableCases.length < numCases) {
+                // Endless loop: reset history when out of fresh cases
+                state.historyQueue = [];
+                availableCases = [...caseDatabase];
+                logAction("系统提示: 往期合规卷宗已归档，类似的业务挑战可能在不同产线重复出现。");
+            }
+
+            availableCases.sort(() => 0.5 - Math.random());
+            
+            for (let i = 0; i < numCases; i++) {
+                const selected = availableCases[i];
+                state.historyQueue.push(selected.id);
+                
+                const caseInstance = JSON.parse(JSON.stringify(selected));
+                caseInstance.instanceId = `case_${state.day}_${i}`;
+                state.inbox.push(caseInstance);
+            }
+
+            if (state.historyQueue.length > 6) {
+                state.historyQueue = state.historyQueue.slice(state.historyQueue.length - 6);
+            }
+
+            logAction(`[第 ${state.day} 工作日] 收到了 ${numCases} 份需要法务决策的紧急文件。`);
+            
+            updateUI();
+            renderInbox();
+            switchTab('tab-inbox');
+        }
+
+        function updateUI() {
+            // Bounds
+            state.risk = Math.max(0, Math.min(100, state.risk));
+            state.velocity = Math.max(0, Math.min(100, state.velocity));
+            state.esg = Math.max(0, Math.min(100, state.esg));
+
+            // Check End Conditions
+            if (state.risk >= 90 || state.velocity <= 20) {
+                triggerGameOver();
+                return;
+            }
+
+            document.getElementById('current-day-display').innerText = `Day ${state.day}`;
+
+            // Risk Bar (Green -> Red)
+            const riskBar = document.getElementById('metric-risk-bar');
+            document.getElementById('metric-risk-text').innerText = `${state.risk}%`;
+            riskBar.style.width = `${state.risk}%`;
+            riskBar.className = 'h-full metric-bar transition-all duration-500';
+            if(state.risk < 40) riskBar.classList.add('bg-emerald-500');
+            else if(state.risk < 70) riskBar.classList.add('bg-amber-500');
+            else riskBar.classList.add('bg-rose-500');
+
+            // Velocity Bar (Red -> Blue)
+            const velBar = document.getElementById('metric-velocity-bar');
+            document.getElementById('metric-velocity-text').innerText = `${state.velocity}%`;
+            velBar.style.width = `${state.velocity}%`;
+            velBar.className = 'h-full metric-bar transition-all duration-500';
+            if(state.velocity >= 60) velBar.classList.add('bg-blue-500');
+            else if(state.velocity >= 40) velBar.classList.add('bg-amber-500');
+            else velBar.classList.add('bg-rose-500');
+
+            // ESG Bar (Red -> Green)
+            const esgBar = document.getElementById('metric-esg-bar');
+            document.getElementById('metric-esg-text').innerText = `${state.esg}`;
+            esgBar.style.width = `${state.esg}%`;
+            esgBar.className = 'h-full metric-bar transition-all duration-500';
+            if(state.esg >= 70) esgBar.classList.add('bg-emerald-400');
+            else if(state.esg >= 40) esgBar.classList.add('bg-amber-400');
+            else esgBar.classList.add('bg-rose-500');
+
+            document.getElementById('metric-budget').innerText = cnyFmt.format(state.budget);
+
+            const badge = document.getElementById('badge-inbox');
+            if (state.inbox.length > 0) {
+                badge.innerText = state.inbox.length;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+
+        function renderInbox() {
+            const list = document.getElementById('case-list');
+            list.innerHTML = '';
+
+            if (state.inbox.length === 0) {
+                list.innerHTML = `
+                    <div class="text-center py-16 bg-slate-800/50 border border-dashed border-slate-700 rounded-xl text-slate-500">
+                        <i class="fa-solid fa-mug-hot text-4xl mb-4 opacity-50"></i>
+                        <p class="font-medium text-slate-400">今日法务待办已全部清空</p>
+                        <p class="text-xs mt-2">点击左侧“进入下一工作日”继续模拟。</p>
+                    </div>
+                `;
+                return;
+            }
+
+            state.inbox.forEach(c => {
+                const item = document.createElement('div');
+                item.className = 'bg-brunp-panel hover:bg-slate-800 border border-slate-700 hover:border-brunp-green p-5 rounded-xl cursor-pointer transition-all flex flex-col gap-3 group shadow-md';
+                item.onclick = () => openCase(c.instanceId);
+                
+                const initial = c.sender.substring(0, 1).toUpperCase();
+                
+                item.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <span class="text-[10px] bg-slate-700 text-emerald-400 px-2 py-0.5 rounded font-bold tracking-wider">${c.category}</span>
+                        <span class="text-[10px] text-rose-400 font-bold border border-rose-500/50 px-1.5 py-0.5 rounded animate-pulse">待批复</span>
+                    </div>
+                    <div class="flex items-start gap-3">
+                        <div class="w-8 h-8 rounded border border-slate-600 bg-slate-700 flex items-center justify-center text-slate-300 font-bold shrink-0">${initial}</div>
+                        <div>
+                            <h3 class="text-md font-bold text-slate-200 group-hover:text-emerald-400 transition-colors">${c.subject}</h3>
+                            <p class="text-xs text-slate-500 mt-1">${c.sender} | ${c.role}</p>
+                        </div>
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        let activeInstanceId = null;
+
+        function openCase(instanceId) {
+            const caseData = state.inbox.find(c => c.instanceId === instanceId);
+            if (!caseData) return;
+            activeInstanceId = instanceId;
+
+            document.getElementById('inbox-list-container').classList.add('hidden');
+            const detailContainer = document.getElementById('case-detail-container');
+            detailContainer.classList.remove('hidden');
+            
+            document.getElementById('case-category').innerText = caseData.category;
+            document.getElementById('case-subject').innerText = caseData.subject;
+            document.getElementById('case-sender').innerText = caseData.sender;
+            document.getElementById('case-role').innerText = caseData.role;
+            document.getElementById('case-avatar').innerText = caseData.sender.substring(0, 1).toUpperCase();
+            document.getElementById('case-content').innerHTML = caseData.content;
+
+            const optsContainer = document.getElementById('case-options');
+            optsContainer.innerHTML = '';
+            
+            caseData.options.forEach((opt, idx) => {
+                const btn = document.createElement('button');
+                btn.className = 'w-full text-left p-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-amber-500 rounded-lg transition-all group flex items-start gap-3 shadow-sm';
+                btn.onclick = () => makeDecision(instanceId, idx);
+                btn.innerHTML = `
+                    <div class="mt-0.5 shrink-0 text-slate-500 group-hover:text-amber-400"><i class="fa-regular fa-square-check"></i></div>
+                    <span class="text-sm text-slate-300 group-hover:text-slate-100 leading-relaxed">${opt.text}</span>
+                `;
+                optsContainer.appendChild(btn);
+            });
+        }
+
+        function closeCase() {
+            activeInstanceId = null;
+            document.getElementById('inbox-list-container').classList.remove('hidden');
+            document.getElementById('case-detail-container').classList.add('hidden');
+        }
+
+        function makeDecision(instanceId, optionIdx) {
+            const caseData = state.inbox.find(c => c.instanceId === instanceId);
+            const choice = caseData.options[optionIdx];
+
+            state.risk += choice.impact.risk;
+            state.velocity += choice.impact.velocity;
+            state.esg += choice.impact.esg;
+            state.budget += choice.impact.budget;
+            state.casesDone++;
+
+            state.inbox = state.inbox.filter(c => c.instanceId !== instanceId);
+
+            logAction(`[决议] 对 "${caseData.subject}" 做出法务裁定。`);
+            updateUI();
+            showMemo(choice);
+        }
+
+        function showMemo(choice) {
+            const modal = document.getElementById('memo-modal');
+            const analysis = document.getElementById('memo-analysis');
+            const impacts = document.getElementById('memo-impacts');
+            
+            document.getElementById('memo-date').innerHTML = `<span class="font-bold">DATE:</span> Day ${state.day}`;
+            
+            let statusBadge = choice.isCorrect 
+                ? '<span class="text-emerald-700 font-bold border-2 border-emerald-700 px-3 py-1 rounded tracking-widest text-sm inline-block mb-4 transform -rotate-1 shadow-sm"><i class="fa-solid fa-check"></i> 审查合规 (COMPLIANT)</span>'
+                : '<span class="text-rose-700 font-bold border-2 border-rose-700 px-3 py-1 rounded tracking-widest text-sm inline-block mb-4 transform rotate-1 shadow-sm"><i class="fa-solid fa-xmark"></i> 严重违规风险 (HIGH RISK)</span>';
+            
+            analysis.innerHTML = `${statusBadge}<br><span class="leading-relaxed text-[15px]">${choice.analysis}</span>`;
+
+            const fmtRisk = choice.impact.risk > 0 ? `<span class="text-rose-600 font-bold">+${choice.impact.risk}%</span>` : `<span class="text-emerald-600 font-bold">${choice.impact.risk}%</span>`;
+            const fmtVel = choice.impact.velocity > 0 ? `<span class="text-blue-600 font-bold">+${choice.impact.velocity}%</span>` : `<span class="text-amber-600 font-bold">${choice.impact.velocity}%</span>`;
+            const fmtEsg = choice.impact.esg > 0 ? `<span class="text-emerald-600 font-bold">+${choice.impact.esg}</span>` : `<span class="text-rose-600 font-bold">${choice.impact.esg}</span>`;
+            const fmtBud = cnyFmt.format(choice.impact.budget);
+
+            impacts.innerHTML = `
+                <div class="flex justify-between border-b border-slate-300 pb-1.5"><span class="text-slate-600">合规风险变化 (Risk):</span> ${fmtRisk}</div>
+                <div class="flex justify-between border-b border-slate-300 pb-1.5"><span class="text-slate-600">业务推进效率 (Velocity):</span> ${fmtVel}</div>
+                <div class="flex justify-between border-b border-slate-300 pb-1.5"><span class="text-slate-600">品牌/ESG声誉 (ESG):</span> ${fmtEsg}</div>
+                <div class="flex justify-between pb-1.5"><span class="text-slate-600">法务/运营预算损耗 (Cost):</span> <span class="${choice.impact.budget < 0 ? 'text-rose-600' : 'text-slate-600'} font-mono font-bold">${fmtBud}</span></div>
+            `;
+
+            modal.classList.remove('hidden');
+        }
+
+        function closeMemo() {
+            document.getElementById('memo-modal').classList.add('hidden');
+            renderInbox();
+            if(state.inbox.length === 0) {
+                // Keep them in inbox view so they see the "empty" state
+                closeCase(); 
+            } else {
+                closeCase();
+            }
+        }
+
+        function triggerGameOver() {
+            document.getElementById('go-days').innerText = state.day;
+            document.getElementById('go-cases').innerText = state.casesDone;
+            
+            if (state.risk >= 90) {
+                document.getElementById('go-title').innerText = "合规红线崩盘";
+                document.getElementById('go-desc').innerText = "由于您的一系列高风险决策，监管机构突击搜查了邦普总部，巨额罚款导致公司陷入危机，您已被吊销执照。";
+            } else if (state.velocity <= 20) {
+                document.getElementById('go-title').innerText = "业务彻底停滞";
+                document.getElementById('go-desc').innerText = "过度僵化的法务决策导致全链条产业园运转瘫痪，董事会认为您无法赋能业务，已将您辞退。";
+            }
+
+            document.getElementById('game-over-modal').classList.remove('hidden');
+        }
+
+        function logAction(msg) {
+            const logContainer = document.getElementById('system-log');
+            const time = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+            const logEntry = document.createElement('div');
+            logEntry.innerHTML = `<span class="text-emerald-500 font-bold">[${time}]</span> ${msg}`;
+            logContainer.insertBefore(logEntry, logContainer.firstChild);
+        }
+
+        // --- Boot ---
+        window.onload = initApp;
+
+    </script>
+</body>
+</html>
